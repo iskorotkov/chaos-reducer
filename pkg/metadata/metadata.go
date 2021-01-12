@@ -1,7 +1,6 @@
 package metadata
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +26,7 @@ var (
 	sliceOfDurations = reflect.TypeOf([]time.Duration(nil))
 )
 
-func Parse(metadata v1.ObjectMeta, data interface{}, prefix string) error {
+func Unmarshall(metadata v1.ObjectMeta, data interface{}, prefix string) error {
 	refPtr := reflect.ValueOf(data)
 	if refPtr.Kind() != reflect.Ptr {
 		return ErrNotStructPointer
@@ -62,6 +61,61 @@ func Parse(metadata v1.ObjectMeta, data interface{}, prefix string) error {
 		err, done := parseValue(refTypeField, refField, value)
 		if done {
 			return err
+		}
+	}
+
+	return nil
+}
+
+func Marshall(metadata *v1.ObjectMeta, data interface{}, prefix string) error {
+	refPtr := reflect.ValueOf(data)
+	if refPtr.Kind() != reflect.Ptr {
+		return ErrNotStructPointer
+	}
+
+	ref := refPtr.Elem()
+	if ref.Kind() != reflect.Struct {
+		return ErrNotStructPointer
+	}
+
+	refType := ref.Type()
+
+	if metadata.Labels == nil {
+		metadata.Labels = make(map[string]string)
+	}
+
+	if metadata.Annotations == nil {
+		metadata.Annotations = make(map[string]string)
+	}
+
+	for i := 0; i < refType.NumField(); i++ {
+		refField := ref.Field(i)
+		refTypeField := refType.Field(i)
+
+		dict := metadata.Annotations
+		tag, ok := refTypeField.Tag.Lookup("annotation")
+		if !ok {
+			// Try to use labels
+			tag, ok = refTypeField.Tag.Lookup("label")
+			if !ok {
+				continue
+			}
+
+			dict = metadata.Labels
+		}
+
+		key := fmt.Sprintf("%s/%s", prefix, tag)
+
+		if refField.Kind() == reflect.Slice {
+			var values []string
+			for i := 0; i < refField.Len(); i++ {
+				s := fmt.Sprint(refField.Index(i))
+				values = append(values, s)
+			}
+
+			dict[key] = strings.Join(values, ",")
+		} else {
+			dict[key] = fmt.Sprint(refField)
 		}
 	}
 
@@ -162,12 +216,6 @@ func parseValue(typeField reflect.StructField, valueField reflect.Value, value s
 			return ErrConversion, true
 		}
 		valueField.SetComplex(c)
-	case reflect.Struct:
-		//goland:noinspection GoVetUnmarshal
-		err := json.Unmarshal([]byte(value), valueField.Addr())
-		if err != nil {
-			return ErrConversion, true
-		}
 	case reflect.Slice:
 		err := handleSlice(valueField, value, ",")
 		if err != nil {
