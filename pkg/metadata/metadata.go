@@ -14,6 +14,7 @@ var (
 	ErrUnsupportedType  = errors.New("type is not supported")
 	ErrConversion       = errors.New("couldn't convert value to requested type")
 	ErrNotStructPointer = errors.New("passed data isn't a pointer to struct")
+	ErrValueMissing     = errors.New("couldn't extract value from metadata")
 
 	sliceOfStrings   = reflect.TypeOf([]string(nil))
 	sliceOfBools     = reflect.TypeOf([]bool(nil))
@@ -26,7 +27,7 @@ var (
 	sliceOfDurations = reflect.TypeOf([]time.Duration(nil))
 )
 
-func Unmarshall(metadata v1.ObjectMeta, data interface{}, prefix string) error {
+func Unmarshal(metadata v1.ObjectMeta, data interface{}, prefix string) error {
 	refPtr := reflect.ValueOf(data)
 	if refPtr.Kind() != reflect.Ptr {
 		return ErrNotStructPointer
@@ -43,10 +44,11 @@ func Unmarshall(metadata v1.ObjectMeta, data interface{}, prefix string) error {
 		refField := ref.Field(i)
 		refTypeField := refType.Field(i)
 
+		// Try to use annotations
 		dict := metadata.Annotations
 		tag, ok := refTypeField.Tag.Lookup("annotation")
 		if !ok {
-			// Try to use labels
+			// Fallback to using labels
 			tag, ok = refTypeField.Tag.Lookup("label")
 			if !ok {
 				continue
@@ -56,10 +58,13 @@ func Unmarshall(metadata v1.ObjectMeta, data interface{}, prefix string) error {
 		}
 
 		key := fmt.Sprintf("%s/%s", prefix, tag)
-		value := dict[key]
+		value, ok := dict[key]
+		if !ok {
+			return ErrValueMissing
+		}
 
-		err, done := parseValue(refTypeField, refField, value)
-		if done {
+		err := parseValue(refTypeField, refField, value)
+		if err != nil {
 			return err
 		}
 	}
@@ -67,7 +72,7 @@ func Unmarshall(metadata v1.ObjectMeta, data interface{}, prefix string) error {
 	return nil
 }
 
-func Marshall(metadata *v1.ObjectMeta, data interface{}, prefix string) error {
+func Marshal(metadata *v1.ObjectMeta, data interface{}, prefix string) error {
 	refPtr := reflect.ValueOf(data)
 	if refPtr.Kind() != reflect.Ptr {
 		return ErrNotStructPointer
@@ -122,26 +127,26 @@ func Marshall(metadata *v1.ObjectMeta, data interface{}, prefix string) error {
 	return nil
 }
 
-func parseValue(typeField reflect.StructField, valueField reflect.Value, value string) (error, bool) {
+func parseValue(typeField reflect.StructField, valueField reflect.Value, value string) error {
 	switch typeField.Type.Kind() {
 	case reflect.String:
 		valueField.SetString(value)
 	case reflect.Bool:
 		b, err := strconv.ParseBool(value)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetBool(b)
 	case reflect.Int8:
 		i, err := strconv.ParseInt(value, 10, 8)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetInt(i)
 	case reflect.Int16:
 		i, err := strconv.ParseInt(value, 10, 16)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetInt(i)
 	case reflect.Int:
@@ -149,33 +154,33 @@ func parseValue(typeField reflect.StructField, valueField reflect.Value, value s
 	case reflect.Int32:
 		i, err := strconv.ParseInt(value, 10, 32)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetInt(i)
 	case reflect.Int64:
 		if typeField.Type.String() == "time.Duration" {
 			d, err := time.ParseDuration(value)
 			if err != nil {
-				return ErrConversion, true
+				return ErrConversion
 			}
 			valueField.Set(reflect.ValueOf(d))
 		} else {
 			i, err := strconv.ParseInt(value, 10, 64)
 			if err != nil {
-				return ErrConversion, true
+				return ErrConversion
 			}
 			valueField.SetInt(i)
 		}
 	case reflect.Uint8:
 		i, err := strconv.ParseUint(value, 10, 8)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetUint(i)
 	case reflect.Uint16:
 		i, err := strconv.ParseUint(value, 10, 16)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetUint(i)
 	case reflect.Uint:
@@ -183,46 +188,46 @@ func parseValue(typeField reflect.StructField, valueField reflect.Value, value s
 	case reflect.Uint32:
 		i, err := strconv.ParseUint(value, 10, 32)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetUint(i)
 	case reflect.Uint64:
 		i, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetUint(i)
 	case reflect.Float32:
 		f, err := strconv.ParseFloat(value, 32)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetFloat(f)
 	case reflect.Float64:
 		f, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetFloat(f)
 	case reflect.Complex64:
 		c, err := strconv.ParseComplex(value, 64)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetComplex(c)
 	case reflect.Complex128:
 		c, err := strconv.ParseComplex(value, 128)
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 		valueField.SetComplex(c)
 	case reflect.Slice:
 		err := handleSlice(valueField, value, ",")
 		if err != nil {
-			return ErrConversion, true
+			return ErrConversion
 		}
 	}
-	return nil, false
+	return nil
 }
 
 func handleSlice(field reflect.Value, value, separator string) error {
@@ -238,49 +243,49 @@ func handleSlice(field reflect.Value, value, separator string) error {
 	case sliceOfBools:
 		boolData, err := parseBools(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(boolData))
 	case sliceOfInts:
 		intData, err := parseInts(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(intData))
 	case sliceOfUints:
 		intData, err := parseUints(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(intData))
 	case sliceOfInt64s:
 		int64Data, err := parseInt64s(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(int64Data))
 	case sliceOfUint64s:
 		uint64Data, err := parseUint64s(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(uint64Data))
 	case sliceOfFloat32s:
 		data, err := parseFloat32s(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(data))
 	case sliceOfFloat64s:
 		data, err := parseFloat64s(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(data))
 	case sliceOfDurations:
 		durationData, err := parseDurations(splitData)
 		if err != nil {
-			return err
+			return ErrConversion
 		}
 		field.Set(reflect.ValueOf(durationData))
 	default:
@@ -296,7 +301,7 @@ func parseBools(data []string) ([]bool, error) {
 	for _, v := range data {
 		bValue, err := strconv.ParseBool(v)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 
 		boolSlice = append(boolSlice, bValue)
@@ -310,7 +315,7 @@ func parseInts(data []string) ([]int, error) {
 	for _, v := range data {
 		intValue, err := strconv.ParseInt(v, 10, 32)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 		intSlice = append(intSlice, int(intValue))
 	}
@@ -323,7 +328,7 @@ func parseUints(data []string) ([]uint, error) {
 	for _, v := range data {
 		uintValue, err := strconv.ParseUint(v, 10, 32)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 		uintSlice = append(uintSlice, uint(uintValue))
 	}
@@ -336,7 +341,7 @@ func parseInt64s(data []string) ([]int64, error) {
 	for _, v := range data {
 		intValue, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 		intSlice = append(intSlice, intValue)
 	}
@@ -349,7 +354,7 @@ func parseUint64s(data []string) ([]uint64, error) {
 	for _, v := range data {
 		uintValue, err := strconv.ParseUint(v, 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 		uintSlice = append(uintSlice, uintValue)
 	}
@@ -362,7 +367,7 @@ func parseFloat32s(data []string) ([]float32, error) {
 	for _, v := range data {
 		data, err := strconv.ParseFloat(v, 32)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 		float32Slice = append(float32Slice, float32(data))
 	}
@@ -375,7 +380,7 @@ func parseFloat64s(data []string) ([]float64, error) {
 	for _, v := range data {
 		data, err := strconv.ParseFloat(v, 64)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 		float64Slice = append(float64Slice, data)
 	}
@@ -388,7 +393,7 @@ func parseDurations(data []string) ([]time.Duration, error) {
 	for _, v := range data {
 		dValue, err := time.ParseDuration(v)
 		if err != nil {
-			return nil, err
+			return nil, ErrConversion
 		}
 
 		durationSlice = append(durationSlice, dValue)

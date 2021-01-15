@@ -7,13 +7,13 @@ import (
 )
 
 type Data struct {
-	Id     int      `annotation:"id"`
+	ID     int      `annotation:"id"`
 	Name   string   `annotation:"name"`
 	Age    uint     `label:"age"`
 	Skills []string `label:"skills"`
 }
 
-func TestUnmarshall(t *testing.T) {
+func TestUnmarshal(t *testing.T) {
 	type args struct {
 		metadata v1.ObjectMeta
 		prefix   string
@@ -40,7 +40,7 @@ func TestUnmarshall(t *testing.T) {
 				prefix: "prefix",
 			},
 			want: Data{
-				Id:     1,
+				ID:     1,
 				Name:   "John",
 				Age:    30,
 				Skills: []string{"cooking", "swimming", "driving"},
@@ -51,12 +51,12 @@ func TestUnmarshall(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := Data{}
-			if err := Unmarshall(tt.args.metadata, &data, tt.args.prefix); (err != nil) != tt.wantErr {
-				t.Errorf("Unmarshall() error = %v, wantErr %v", err, tt.wantErr)
+			if err := Unmarshal(tt.args.metadata, &data, tt.args.prefix); (err != nil) != tt.wantErr {
+				t.Errorf("Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			if !tt.wantErr && !reflect.DeepEqual(data, tt.want) {
-				t.Errorf("Unmarshall() struct = %v, want %v", data, tt.want)
+				t.Errorf("Unmarshal() struct = %v, want %v", data, tt.want)
 			}
 		})
 	}
@@ -77,7 +77,7 @@ func TestMarshall(t *testing.T) {
 			name: "",
 			args: args{
 				data: Data{
-					Id:     1,
+					ID:     1,
 					Name:   "John",
 					Age:    30,
 					Skills: []string{"cooking", "swimming", "driving"},
@@ -100,12 +100,12 @@ func TestMarshall(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			metadata := v1.ObjectMeta{}
-			if err := Marshall(&metadata, &tt.args.data, tt.args.prefix); (err != nil) != tt.wantErr {
-				t.Errorf("Marshall() error = %v, wantErr %v", err, tt.wantErr)
+			if err := Marshal(&metadata, &tt.args.data, tt.args.prefix); (err != nil) != tt.wantErr {
+				t.Errorf("Marshal() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			if !tt.wantErr && !reflect.DeepEqual(metadata, tt.want) {
-				t.Errorf("Marshall() struct = %v, want %v", metadata, tt.want)
+				t.Errorf("Marshal() struct = %v, want %v", metadata, tt.want)
 			}
 		})
 	}
