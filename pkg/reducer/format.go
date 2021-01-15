@@ -2,13 +2,23 @@ package reducer
 
 import (
 	"github.com/argoproj/argo/pkg/apis/workflow/v1alpha1"
+	api "github.com/iskorotkov/chaos-reducer/api/metadata"
+	"github.com/iskorotkov/chaos-reducer/pkg/metadata"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Format(scenario Scenario) (*v1alpha1.Workflow, error) {
 	res := scenario.Workflow.DeepCopy()
+	res.ObjectMeta.Name = ""
+	res.Status = v1alpha1.WorkflowStatus{}
+
+	err := metadata.Marshal(&res.ObjectMeta, &scenario.Metadata, api.Prefix)
+	if err != nil {
+		return nil, ErrMetadata
+	}
 
 	templates := []v1alpha1.Template{{
-		Name:  "entrypoint",
+		Name:  scenario.Workflow.Spec.Entrypoint,
 		Steps: buildStepsTemplate(scenario),
 	}}
 
@@ -17,6 +27,12 @@ func Format(scenario Scenario) (*v1alpha1.Workflow, error) {
 			for _, candidate := range scenario.Workflow.Spec.Templates {
 				if candidate.Name != step.Template.Name {
 					continue
+				}
+
+				var objectMeta v1.ObjectMeta
+				err := metadata.Marshal(&objectMeta, &step.Metadata, api.Prefix)
+				if err != nil {
+					return nil, ErrMetadata
 				}
 
 				templates = append(templates, candidate)
