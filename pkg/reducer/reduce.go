@@ -15,7 +15,7 @@ func removeFollowingSteps(stages []Stage) []Stage {
 
 func stageFailed(stage Stage) bool {
 	for _, step := range stage.Steps {
-		if step.Failed {
+		if step.Failed() {
 			return true
 		}
 	}
@@ -83,7 +83,7 @@ func removeRandomSteps(stages []Stage, maxStepsPerStage int, rng *rand.Rand) []S
 			}
 
 			index := rng.Intn(len(stage.Steps))
-			for stage.Steps[index].Failed {
+			for stage.Steps[index].Failed() {
 				index = rng.Intn(len(stage.Steps))
 			}
 
@@ -99,7 +99,7 @@ func removeRandomSteps(stages []Stage, maxStepsPerStage int, rng *rand.Rand) []S
 func failedSteps(steps []Step) int {
 	cnt := 0
 	for _, step := range steps {
-		if step.Failed {
+		if step.Failed() {
 			cnt++
 		}
 	}

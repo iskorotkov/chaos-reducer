@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"github.com/argoproj/argo/pkg/apis/workflow/v1alpha1"
+	"github.com/iskorotkov/chaos-reducer/api/metadata"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -35,7 +36,7 @@ func markStepsAsFailed(stage Stage, rng *rand.Rand) {
 	}
 
 	for _, index := range indices[:stepsFailed] {
-		stage.Steps[index].Failed = true
+		stage.Steps[index].Phase = v1alpha1.NodeFailed
 	}
 }
 
@@ -48,14 +49,10 @@ func createSucceededStages(rng *rand.Rand) []Stage {
 
 		stepsNum := minSteps + rng.Intn(maxSteps-minSteps)
 		for j := 0; j < stepsNum; j++ {
-			steps = append(steps, Step{
-				Failed:       false,
-				WorkflowStep: v1alpha1.WorkflowStep{},
-				Template:     v1alpha1.Template{},
-			})
+			steps = append(steps, NewStep(v1alpha1.NodeSucceeded, v1alpha1.WorkflowStep{}, v1alpha1.Template{}, metadata.TemplateMetadata{}))
 		}
 
-		stages = append(stages, Stage{Steps: steps})
+		stages = append(stages, NewStage(steps, []UtilityStep{}))
 	}
 	return stages
 }
@@ -167,7 +164,7 @@ func Test_removeRandomSteps(t *testing.T) {
 	failedSteps := func(steps []Step) int {
 		cnt := 0
 		for _, step := range steps {
-			if step.Failed {
+			if step.Failed() {
 				cnt++
 			}
 		}
