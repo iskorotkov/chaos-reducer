@@ -2,8 +2,11 @@ package main
 
 import (
 	"github.com/caarlos0/env"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	"log"
+	"os"
+	"runtime/debug"
 )
 
 type Params struct {
@@ -12,6 +15,16 @@ type Params struct {
 }
 
 func main() {
+	// Handle panics.
+	defer func() {
+		r := recover()
+		if r != nil {
+			log.Printf("panic occurred: %v", r)
+			debug.PrintStack()
+			os.Exit(1)
+		}
+	}()
+
 	var params Params
 	err := env.Parse(&params)
 	if err != nil {
